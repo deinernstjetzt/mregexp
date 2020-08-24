@@ -112,9 +112,16 @@ typedef struct {
 	uint32_t chr;
 } CharNode;
 
+typedef struct {
+	GenericNode generic;
+	union RegexNode *subexp;
+	size_t min, max;
+} QuantNode;
+
 typedef union RegexNode {
 	GenericNode generic;
 	CharNode chr;
+	QuantNode quant;
 } RegexNode;
 
 static bool is_match(RegexNode *node, const char *orig, const char *cur,
@@ -177,6 +184,24 @@ static bool any_is_match(RegexNode *node, const char *orig, const char *cur,
 	return false;
 }
 
+static bool quant_is_match(RegexNode *node, const char *orig, const char *cur,
+			   const char **next)
+{
+	QuantNode *quant = (QuantNode *)node;
+	size_t matches = 0;
+
+	while (is_match(quant->subexp, orig, cur, next)) {
+		matches++;
+		cur = *next;
+
+		if (matches >= quant->max)
+			break;
+	}
+
+	*next = cur;
+	return matches >= quant->min;
+}
+
 /* Global error value with callback address */
 struct {
 	MRegexpError err;
@@ -220,6 +245,25 @@ static const size_t calc_compiled_len(const char *s)
 	}
 }
 
+static void append_quant(RegexNode **prev, RegexNode *cur, size_t min,
+			 size_t max, const char *re)
+{
+	cur->generic.match = quant_is_match;
+	cur->generic.next = NULL;
+	cur->generic.prev = NULL;
+
+	cur->quant.max = max;
+	cur->quant.min = min;
+	cur->quant.subexp = *prev;
+
+	*prev = (*prev)->generic.prev;
+	if (*prev == NULL)
+		throw_compile_exception(MREGEXP_EARLY_QUANTIFIER, re);
+
+	cur->quant.subexp->generic.next = NULL;
+	cur->quant.subexp->generic.prev = NULL;
+}
+
 /* compile next node. returns address of next available node.
  * returns NULL if re is empty */
 static RegexNode *compile_next(const char *re, const char **leftover,
@@ -243,6 +287,14 @@ static RegexNode *compile_next(const char *re, const char **leftover,
 
 	case '.':
 		cur->generic.match = any_is_match;
+		break;
+
+	case '*':
+		append_quant(&prev, cur, 0, __SIZE_MAX__, re);
+		break;
+
+	case '+':
+		append_quant(&prev, cur, 1, __SIZE_MAX__, re);
 		break;
 
 	default:

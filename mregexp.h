@@ -20,6 +20,7 @@ typedef enum {
 	MREGEXP_FAILED_ALLOC,
 	MREGEXP_INVALID_UTF8,
 	MREGEXP_INVALID_PARAMS,
+	MREGEXP_EARLY_QUANTIFIER,
 } MRegexpError;
 
 /* compile regular expression */

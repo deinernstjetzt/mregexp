@@ -45,6 +45,52 @@ START_TEST(compile_match_anchors)
 }
 END_TEST
 
+START_TEST(compile_match_quantifiers)
+{
+    MRegexp *re = mregexp_compile("ä+");
+    ck_assert_int_eq(mregexp_error(), MREGEXP_OK);
+    ck_assert_ptr_ne(re, NULL);
+
+    MRegexpMatch m;
+    ck_assert(mregexp_match(re, "ääb", &m));
+    ck_assert_uint_eq(m.match_begin, 0);
+    ck_assert_uint_eq(m.match_end, 4);
+
+    ck_assert(mregexp_match(re, "bäbb", &m));
+    ck_assert_uint_eq(m.match_begin, 1);
+    ck_assert_uint_eq(m.match_end, 3);
+
+    ck_assert(!mregexp_match(re, "bbb", &m));
+
+    mregexp_free(re);
+
+    re = mregexp_compile("bä*");
+    ck_assert_int_eq(mregexp_error(), MREGEXP_OK);
+    ck_assert_ptr_ne(re, NULL);
+
+    ck_assert(mregexp_match(re, "bääb", &m));
+    ck_assert_uint_eq(m.match_begin, 0);
+    ck_assert_uint_eq(m.match_end, 5);
+
+    ck_assert(mregexp_match(re, "bäbb", &m));
+    ck_assert_uint_eq(m.match_begin, 0);
+    ck_assert_uint_eq(m.match_end, 3);
+
+    ck_assert(mregexp_match(re, "bbb", &m));
+    ck_assert_uint_eq(m.match_begin, 0);
+    ck_assert_uint_eq(m.match_end, 1);
+
+    mregexp_free(re);
+}
+END_TEST
+
+START_TEST(invalid_quantifier)
+{
+    ck_assert_ptr_eq(mregexp_compile("+"), NULL);
+    ck_assert_int_eq(mregexp_error(), MREGEXP_EARLY_QUANTIFIER);
+}
+END_TEST
+
 /* Test that invalid parameters do not cause a
  * segmentation fault */
 START_TEST(invalid_params)
@@ -86,6 +132,8 @@ Suite *mregexp_test_suite(void)
 	tcase_add_test(tcase, invalid_params);
 	tcase_add_test(tcase, invalid_utf8);
 	tcase_add_test(tcase, compile_match_anchors);
+    tcase_add_test(tcase, compile_match_quantifiers);
+    tcase_add_test(tcase, invalid_quantifier);
 
 	suite_add_tcase(ret, tcase);
 	return ret;
