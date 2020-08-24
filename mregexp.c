@@ -237,7 +237,7 @@ static const size_t calc_compiled_len(const char *s)
 
 		switch (chr) {
 		case '{': {
-			char *end = strstr(s, "}");
+			const char *end = strstr(s, "}");
 
 			if (end == NULL)
 				throw_compile_exception(
