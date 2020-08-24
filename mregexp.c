@@ -118,18 +118,18 @@ typedef union RegexNode {
 } RegexNode;
 
 static bool is_match(RegexNode *node, const char *orig, const char *cur,
-    const char **next)
+		     const char **next)
 {
-    if (node == NULL) {
-        *next = cur;
-        return true;
-    } else {
-        if ((node->generic.match) (node, orig, cur, next)) {
-            return is_match(node->generic.next, orig, *next, next);
-        } else {
-            return false;
-        }
-    }
+	if (node == NULL) {
+		*next = cur;
+		return true;
+	} else {
+		if ((node->generic.match)(node, orig, cur, next)) {
+			return is_match(node->generic.next, orig, *next, next);
+		} else {
+			return false;
+		}
+	}
 }
 
 static bool char_is_match(RegexNode *node, const char *orig, const char *cur,
@@ -150,6 +150,31 @@ static bool start_is_match(RegexNode *node, const char *orig, const char *cur,
 {
 	*next = cur;
 	return true;
+}
+
+static bool anchor_begin_is_match(RegexNode *node, const char *orig,
+				  const char *cur, const char **next)
+{
+	*next = cur;
+	return strlen(orig) == strlen(cur);
+}
+
+static bool anchor_end_is_match(RegexNode *node, const char *orig,
+				const char *cur, const char **next)
+{
+	*next = cur;
+	return strlen(cur) == 0;
+}
+
+static bool any_is_match(RegexNode *node, const char *orig, const char *cur,
+			 const char **next)
+{
+	if (*cur) {
+		*next = utf8_next(cur);
+		return true;
+	}
+
+	return false;
 }
 
 /* Global error value with callback address */
@@ -197,16 +222,29 @@ static const size_t calc_compiled_len(const char *s)
 
 /* compile next node. returns address of next available node.
  * returns NULL if re is empty */
-static RegexNode *compile_next(const char *re, const char **leftover, RegexNode *prev, RegexNode *cur)
+static RegexNode *compile_next(const char *re, const char **leftover,
+			       RegexNode *prev, RegexNode *cur)
 {
 	if (*re == 0)
 		return NULL;
-	
+
 	const uint32_t chr = utf8_peek(re);
 	re = utf8_next(re);
 	RegexNode *next = cur + 1;
 
 	switch (chr) {
+	case '^':
+		cur->generic.match = anchor_begin_is_match;
+		break;
+
+	case '$':
+		cur->generic.match = anchor_end_is_match;
+		break;
+
+	case '.':
+		cur->generic.match = any_is_match;
+		break;
+
 	default:
 		cur->chr.chr = chr;
 		cur->generic.match = char_is_match;
@@ -262,7 +300,7 @@ MRegexp *mregexp_compile(const char *re)
 		return NULL;
 	}
 
-	MRegexp *ret = (MRegexp *) calloc(1, sizeof(MRegexp));
+	MRegexp *ret = (MRegexp *)calloc(1, sizeof(MRegexp));
 
 	if (ret == NULL) {
 		CompileException.err = MREGEXP_FAILED_ALLOC;
@@ -281,7 +319,7 @@ MRegexp *mregexp_compile(const char *re)
 	}
 
 	const size_t compile_len = calc_compiled_len(re);
-	nodes = (RegexNode *) calloc(compile_len, sizeof(RegexNode));
+	nodes = (RegexNode *)calloc(compile_len, sizeof(RegexNode));
 	ret->nodes = compile(re, nodes);
 
 	return ret;
