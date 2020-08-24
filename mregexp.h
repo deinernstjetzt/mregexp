@@ -21,12 +21,13 @@ typedef enum {
 	MREGEXP_INVALID_UTF8,
 	MREGEXP_INVALID_PARAMS,
 	MREGEXP_EARLY_QUANTIFIER,
+	MREGEXP_INVALID_COMPLEX_QUANT,
 } MRegexpError;
 
 /* compile regular expression */
 MRegexp *mregexp_compile(const char *re);
 
-/* get error if the compile failed */
+/* get error type if a function failed */
 MRegexpError mregexp_error(void);
 
 /* find a pattern in a string */

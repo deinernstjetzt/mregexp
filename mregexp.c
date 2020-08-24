@@ -236,6 +236,17 @@ static const size_t calc_compiled_len(const char *s)
 		s = utf8_next(s);
 
 		switch (chr) {
+		case '{': {
+			char *end = strstr(s, "}");
+
+			if (end == NULL)
+				throw_compile_exception(
+					MREGEXP_INVALID_COMPLEX_QUANT, s);
+
+			s = end + 1;
+			ret = 1;
+		}
+
 		default:
 			ret = 1;
 			break;
@@ -262,6 +273,69 @@ static void append_quant(RegexNode **prev, RegexNode *cur, size_t min,
 
 	cur->quant.subexp->generic.next = NULL;
 	cur->quant.subexp->generic.prev = NULL;
+}
+
+static inline bool is_digit(uint32_t c)
+{
+	return c >= '0' && c <= '9';
+}
+
+static inline size_t parse_digit(const char *s, const char **leftover)
+{
+	size_t ret = 0;
+
+	while (*s) {
+		uint32_t chr = utf8_peek(s);
+
+		if (is_digit(chr)) {
+			ret *= 10;
+			ret += chr - '0';
+			s = utf8_next(s);
+		} else {
+			break;
+		}
+	}
+
+	*leftover = s;
+	return ret;
+}
+
+/* parse complex quantifier of format {m,n} */
+static void parse_complex_quant(const char *re, const char **leftover,
+				size_t *min_p, size_t *max_p)
+{
+	if (*re == 0)
+		throw_compile_exception(MREGEXP_INVALID_COMPLEX_QUANT, re);
+
+	uint32_t tmp = utf8_peek(re);
+	size_t min = 0, max = __SIZE_MAX__;
+
+	if (is_digit(tmp)) {
+		min = parse_digit(re, &re);
+	} else if (tmp != ',') {
+		throw_compile_exception(MREGEXP_INVALID_COMPLEX_QUANT, re);
+	}
+
+	tmp = utf8_peek(re);
+
+	if (tmp == ',') {
+		re = utf8_next(re);
+		if (is_digit(utf8_peek(re)))
+			max = parse_digit(re, &re);
+		else
+			max = __SIZE_MAX__;
+	} else {
+		max = min;
+	}
+
+	tmp = utf8_peek(re);
+	if (tmp == '}') {
+		*leftover = re + 1;
+		*min_p = min;
+		*max_p = max;
+	} else {
+		throw_compile_exception(MREGEXP_INVALID_COMPLEX_QUANT, re);
+	}
 }
 
 /* compile next node. returns address of next available node.
@@ -296,6 +370,16 @@ static RegexNode *compile_next(const char *re, const char **leftover,
 	case '+':
 		append_quant(&prev, cur, 1, __SIZE_MAX__, re);
 		break;
+
+	case '{': {
+		size_t min = 0, max = __SIZE_MAX__;
+		const char *leftover = NULL;
+		parse_complex_quant(re, &leftover, &min, &max);
+
+		append_quant(&prev, cur, min, max, re);
+		re = leftover;
+		break;
+	}
 
 	default:
 		cur->chr.chr = chr;

@@ -47,47 +47,97 @@ END_TEST
 
 START_TEST(compile_match_quantifiers)
 {
-    MRegexp *re = mregexp_compile("ä+");
-    ck_assert_int_eq(mregexp_error(), MREGEXP_OK);
-    ck_assert_ptr_ne(re, NULL);
+	MRegexp *re = mregexp_compile("ä+");
+	ck_assert_int_eq(mregexp_error(), MREGEXP_OK);
+	ck_assert_ptr_ne(re, NULL);
 
-    MRegexpMatch m;
-    ck_assert(mregexp_match(re, "ääb", &m));
-    ck_assert_uint_eq(m.match_begin, 0);
-    ck_assert_uint_eq(m.match_end, 4);
+	MRegexpMatch m;
+	ck_assert(mregexp_match(re, "ääb", &m));
+	ck_assert_uint_eq(m.match_begin, 0);
+	ck_assert_uint_eq(m.match_end, 4);
 
-    ck_assert(mregexp_match(re, "bäbb", &m));
-    ck_assert_uint_eq(m.match_begin, 1);
-    ck_assert_uint_eq(m.match_end, 3);
+	ck_assert(mregexp_match(re, "bäbb", &m));
+	ck_assert_uint_eq(m.match_begin, 1);
+	ck_assert_uint_eq(m.match_end, 3);
 
-    ck_assert(!mregexp_match(re, "bbb", &m));
+	ck_assert(!mregexp_match(re, "bbb", &m));
 
-    mregexp_free(re);
+	mregexp_free(re);
 
-    re = mregexp_compile("bä*");
-    ck_assert_int_eq(mregexp_error(), MREGEXP_OK);
-    ck_assert_ptr_ne(re, NULL);
+	re = mregexp_compile("bä*");
+	ck_assert_int_eq(mregexp_error(), MREGEXP_OK);
+	ck_assert_ptr_ne(re, NULL);
 
-    ck_assert(mregexp_match(re, "bääb", &m));
-    ck_assert_uint_eq(m.match_begin, 0);
-    ck_assert_uint_eq(m.match_end, 5);
+	ck_assert(mregexp_match(re, "bääb", &m));
+	ck_assert_uint_eq(m.match_begin, 0);
+	ck_assert_uint_eq(m.match_end, 5);
 
-    ck_assert(mregexp_match(re, "bäbb", &m));
-    ck_assert_uint_eq(m.match_begin, 0);
-    ck_assert_uint_eq(m.match_end, 3);
+	ck_assert(mregexp_match(re, "bäbb", &m));
+	ck_assert_uint_eq(m.match_begin, 0);
+	ck_assert_uint_eq(m.match_end, 3);
 
-    ck_assert(mregexp_match(re, "bbb", &m));
-    ck_assert_uint_eq(m.match_begin, 0);
-    ck_assert_uint_eq(m.match_end, 1);
+	ck_assert(mregexp_match(re, "bbb", &m));
+	ck_assert_uint_eq(m.match_begin, 0);
+	ck_assert_uint_eq(m.match_end, 1);
 
-    mregexp_free(re);
+	mregexp_free(re);
+}
+END_TEST
+
+START_TEST(compile_match_complex_quants)
+{
+	puts("--compile_match_complex_quants--");
+	fflush(stdout);
+	MRegexp *re1 = mregexp_compile("ä{1,3}");
+	ck_assert_int_eq(mregexp_error(), MREGEXP_OK);
+	ck_assert_ptr_ne(re1, NULL);
+
+	MRegexp *re2 = mregexp_compile("ä{1}");
+	ck_assert_int_eq(mregexp_error(), MREGEXP_OK);
+	ck_assert_ptr_ne(re2, NULL);
+
+	MRegexp *re3 = mregexp_compile("ä{,}");
+	ck_assert_int_eq(mregexp_error(), MREGEXP_OK);
+	ck_assert_ptr_ne(re3, NULL);
+
+	MRegexp *re4 = mregexp_compile("ä{,3}");
+	ck_assert_int_eq(mregexp_error(), MREGEXP_OK);
+	ck_assert_ptr_ne(re4, NULL);
+
+	MRegexpMatch m;
+	ck_assert(mregexp_match(re1, "ääb", &m));
+	ck_assert_uint_eq(m.match_begin, 0);
+	ck_assert_uint_eq(m.match_end, 4);
+	ck_assert(mregexp_match(re1, "äääb", &m));
+	ck_assert(mregexp_match(re1, "äb", &m));
+	ck_assert(!mregexp_match(re1, "b", &m));
+
+	ck_assert(mregexp_match(re2, "ää", &m));
+	ck_assert_uint_eq(m.match_begin, 0);
+	ck_assert_uint_eq(m.match_end, 2);
+	ck_assert(mregexp_match(re2, "bbäb", &m));
+	ck_assert(!mregexp_match(re2, "bbbb", &m));
+
+	ck_assert(mregexp_match(re3, "ääääääääääb", &m));
+	ck_assert_uint_eq(m.match_begin, 0);
+	ck_assert_uint_eq(m.match_end, 20);
+	ck_assert(mregexp_match(re3, "b", &m));
+
+	ck_assert(mregexp_match(re4, "bä", &m));
+	ck_assert(mregexp_match(re4, "bää", &m));
+	ck_assert(mregexp_match(re4, "bäää", &m));
+
+	mregexp_free(re1);
+	mregexp_free(re2);
+	mregexp_free(re3);
+	mregexp_free(re4);
 }
 END_TEST
 
 START_TEST(invalid_quantifier)
 {
-    ck_assert_ptr_eq(mregexp_compile("+"), NULL);
-    ck_assert_int_eq(mregexp_error(), MREGEXP_EARLY_QUANTIFIER);
+	ck_assert_ptr_eq(mregexp_compile("+"), NULL);
+	ck_assert_int_eq(mregexp_error(), MREGEXP_EARLY_QUANTIFIER);
 }
 END_TEST
 
@@ -132,8 +182,9 @@ Suite *mregexp_test_suite(void)
 	tcase_add_test(tcase, invalid_params);
 	tcase_add_test(tcase, invalid_utf8);
 	tcase_add_test(tcase, compile_match_anchors);
-    tcase_add_test(tcase, compile_match_quantifiers);
-    tcase_add_test(tcase, invalid_quantifier);
+	tcase_add_test(tcase, compile_match_quantifiers);
+	tcase_add_test(tcase, invalid_quantifier);
+	tcase_add_test(tcase, compile_match_complex_quants);
 
 	suite_add_tcase(ret, tcase);
 	return ret;
