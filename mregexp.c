@@ -262,7 +262,7 @@ MRegexp *mregexp_compile(const char *re)
 		return NULL;
 	}
 
-	MRegexp *ret = calloc(1, sizeof(MRegexp));
+	MRegexp *ret = (MRegexp *) calloc(1, sizeof(MRegexp));
 
 	if (ret == NULL) {
 		CompileException.err = MREGEXP_FAILED_ALLOC;
@@ -281,7 +281,7 @@ MRegexp *mregexp_compile(const char *re)
 	}
 
 	const size_t compile_len = calc_compiled_len(re);
-	nodes = calloc(compile_len, sizeof(RegexNode));
+	nodes = (RegexNode *) calloc(compile_len, sizeof(RegexNode));
 	ret->nodes = compile(re, nodes);
 
 	return ret;
