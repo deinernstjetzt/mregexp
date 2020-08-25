@@ -86,8 +86,6 @@ END_TEST
 
 START_TEST(compile_match_complex_quants)
 {
-	puts("--compile_match_complex_quants--");
-	fflush(stdout);
 	MRegexp *re1 = mregexp_compile("ä{1,3}");
 	ck_assert_int_eq(mregexp_error(), MREGEXP_OK);
 	ck_assert_ptr_ne(re1, NULL);

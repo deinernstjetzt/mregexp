@@ -118,6 +118,17 @@ typedef struct {
 	size_t min, max;
 } QuantNode;
 
+typedef struct {
+	GenericNode generic;
+	uint32_t first, last;
+} RangeNode;
+
+typedef struct {
+	GenericNode generic;
+	RangeNode *ranges;
+	bool negate;
+} ClassNode;
+
 typedef union RegexNode {
 	GenericNode generic;
 	CharNode chr;
@@ -202,6 +213,32 @@ static bool quant_is_match(RegexNode *node, const char *orig, const char *cur,
 	return matches >= quant->min;
 }
 
+static bool class_is_match(RegexNode *node, const char *orig, const char *cur,
+			   const char **next)
+{
+	ClassNode *cls = (ClassNode *)node;
+
+	if (*cur == 0)
+		return false;
+
+	const uint32_t chr = utf8_peek(cur);
+	*next = utf8_next(cur);
+
+	bool found = false;
+	for (RangeNode *range = cls->ranges; range != NULL;
+	     range = (RangeNode *)range->generic.next) {
+		if (chr >= range->first && chr <= range->last) {
+			found = true;
+			break;
+		}
+	}
+
+	if (cls->negate)
+		found = !found;
+	
+	return found;
+}
+
 /* Global error value with callback address */
 struct {
 	MRegexpError err;
@@ -222,6 +259,38 @@ static void throw_compile_exception(MRegexpError err, const char *s)
 	CompileException.err = err;
 	CompileException.s = s;
 	longjmp(CompileException.buf, 1);
+}
+
+static size_t calc_compiled_escaped_len(const char *s, const char **leftover)
+{
+	if (*s == 0)
+		throw_compile_exception(MREGEXP_UNEXPECTED_EOL, s);
+	
+	const uint32_t chr = utf8_peek(s);
+	*leftover = utf8_next(s);
+
+	switch (chr) {
+	case 's':
+		return 5;
+
+	case 'S':
+		return 5;
+
+	case 'd':
+		return 2;
+
+	case 'D':
+		return 2;
+
+	case 'w':
+		return 5;
+
+	case 'W':
+		return 5;
+	
+	default:
+		return 1;
+	}
 }
 
 /* get required amount of memory in amount of nodes
@@ -245,7 +314,12 @@ static const size_t calc_compiled_len(const char *s)
 
 			s = end + 1;
 			ret = 1;
+			break;
 		}
+
+		case '\\':
+			ret = calc_compiled_escaped_len(s, &s);
+			break;
 
 		default:
 			ret = 1;
@@ -300,7 +374,8 @@ static inline size_t parse_digit(const char *s, const char **leftover)
 	return ret;
 }
 
-/* parse complex quantifier of format {m,n} */
+/* parse complex quantifier of format {m,n} 
+ * valid formats: {,} {m,} {,n} {m} {m,n} */
 static void parse_complex_quant(const char *re, const char **leftover,
 				size_t *min_p, size_t *max_p)
 {
