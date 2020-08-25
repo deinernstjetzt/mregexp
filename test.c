@@ -132,6 +132,43 @@ START_TEST(compile_match_complex_quants)
 }
 END_TEST
 
+START_TEST(compile_match_escaped_chars)
+{
+	MRegexp *re = mregexp_compile("\\n\\r\\t\\{");
+	ck_assert_int_eq(mregexp_error(), MREGEXP_OK);
+	ck_assert_ptr_ne(re, NULL);
+
+	MRegexpMatch m;
+	ck_assert(mregexp_match(re, "\n\r\t{", &m));
+	ck_assert(!mregexp_match(re, "\n\r\t", &m));
+
+	mregexp_free(re);
+}
+END_TEST
+
+START_TEST(compile_match_class_simple)
+{
+	MRegexp *re1 = mregexp_compile("\\s");
+	ck_assert_int_eq(mregexp_error(), MREGEXP_OK);
+	ck_assert_ptr_ne(re1, NULL);
+	MRegexp *re2 = mregexp_compile("\\W");
+	ck_assert_int_eq(mregexp_error(), MREGEXP_OK);
+	ck_assert_ptr_ne(re2, NULL);
+	MRegexp *re3 = mregexp_compile("\\d");
+	ck_assert_int_eq(mregexp_error(), MREGEXP_OK);
+	ck_assert_ptr_ne(re3, NULL);
+
+	MRegexpMatch m;
+	ck_assert(mregexp_match(re1, " ", &m));
+	ck_assert(mregexp_match(re2, " ", &m));
+	ck_assert(mregexp_match(re3, "1", &m));
+
+	mregexp_free(re1);
+	mregexp_free(re2);
+	mregexp_free(re3);
+}
+END_TEST
+
 START_TEST(invalid_quantifier)
 {
 	ck_assert_ptr_eq(mregexp_compile("+"), NULL);
@@ -183,6 +220,8 @@ Suite *mregexp_test_suite(void)
 	tcase_add_test(tcase, compile_match_quantifiers);
 	tcase_add_test(tcase, invalid_quantifier);
 	tcase_add_test(tcase, compile_match_complex_quants);
+	tcase_add_test(tcase, compile_match_escaped_chars);
+	tcase_add_test(tcase, compile_match_class_simple);
 
 	suite_add_tcase(ret, tcase);
 	return ret;

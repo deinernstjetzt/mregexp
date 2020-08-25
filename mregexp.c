@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <setjmp.h>
+#include <stdarg.h>
 
 #include "mregexp.h"
 
@@ -133,6 +134,8 @@ typedef union RegexNode {
 	GenericNode generic;
 	CharNode chr;
 	QuantNode quant;
+	ClassNode cls;
+	RangeNode range;
 } RegexNode;
 
 static bool is_match(RegexNode *node, const char *orig, const char *cur,
@@ -413,6 +416,105 @@ static void parse_complex_quant(const char *re, const char **leftover,
 	}
 }
 
+/* append character class to linked list of nodes with
+ * ranges given as optional arguments. Returns pointer
+ * to next */
+static RegexNode *append_class(RegexNode *cur, bool negate,
+	size_t n, ...)
+{
+	cur->cls.negate = negate;
+	cur->cls.ranges = (RangeNode *) (n ? cur + 1 : NULL);
+	cur->generic.match = class_is_match;
+	cur->generic.next = NULL;
+	cur->generic.prev = NULL;
+
+	va_list ap;
+	va_start(ap, n);
+	RegexNode *prev = NULL;
+	cur = cur + 1;
+
+	for (size_t i = 0; i < n; ++i) {
+		const uint32_t first = va_arg(ap, uint32_t);
+		const uint32_t last = va_arg(ap, uint32_t);
+
+		cur->generic.next = NULL;
+		cur->generic.prev = prev;
+
+		if (prev)
+			prev->generic.next = cur;
+
+		cur->range.first = first;
+		cur->range.last = last;
+
+		prev = cur;
+		cur = cur + 1;
+	}
+
+	va_end(ap);
+
+	return cur + 1 + n;
+}
+
+/** compile escaped characters. return pointer to the next free node. */
+static RegexNode *compile_next_escaped(const char *re, const char **leftover,
+	RegexNode *cur)
+{
+	if (*re == 0)
+		throw_compile_exception(MREGEXP_UNEXPECTED_EOL, re);
+	
+	const uint32_t chr = utf8_peek(re);
+	*leftover = utf8_next(re);
+	RegexNode *ret = cur + 1;
+
+	switch (chr) {
+	case 'n':
+		cur->chr.chr = '\n';
+		cur->generic.match = char_is_match;
+		break;
+
+	case 't':
+		cur->chr.chr = '\t';
+		cur->generic.match = char_is_match;
+		break;
+
+	case 'r':
+		cur->chr.chr = '\r';
+		cur->generic.match = char_is_match;
+		break;
+
+	case 's':
+		ret = append_class(cur, false, 4, ' ', ' ', '\t', '\t', '\r', '\r', '\n', '\n');
+		break;
+	
+	case 'S':
+		ret = append_class(cur, true, 4, ' ', ' ', '\t', '\t', '\r', '\r', '\n', '\n');
+		break;
+
+	case 'w':
+		ret = append_class(cur, false, 4, 'a', 'z', 'A', 'Z', '0', '9', '_', '_');
+		break;
+
+	case 'W':
+		ret = append_class(cur, true, 4, 'a', 'z', 'A', 'Z', '0', '9', '_', '_');
+		break;
+	
+	case 'd':
+		ret = append_class(cur, false, 1, '0', '9');
+		break;
+
+	case 'D':
+		ret = append_class(cur, true, 1, '0', '9');
+		break;
+	
+	default:
+		cur->chr.chr = chr;
+		cur->generic.match = char_is_match;
+		break;
+	}
+
+	return ret;
+}
+
 /* compile next node. returns address of next available node.
  * returns NULL if re is empty */
 static RegexNode *compile_next(const char *re, const char **leftover,
@@ -455,6 +557,10 @@ static RegexNode *compile_next(const char *re, const char **leftover,
 		re = leftover;
 		break;
 	}
+
+	case '\\':
+		next = compile_next_escaped(re, &re, cur);
+		break;
 
 	default:
 		cur->chr.chr = chr;
