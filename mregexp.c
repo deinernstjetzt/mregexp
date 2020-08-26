@@ -535,7 +535,7 @@ static RegexNode *append_class(RegexNode *cur, bool negate, size_t n, ...)
 
 	va_end(ap);
 
-	return cur + 1 + n;
+	return cur;
 }
 
 /** compile escaped characters. return pointer to the next free node. */
