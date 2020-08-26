@@ -29,7 +29,7 @@
 
 #include "mregexp.h"
 
-static unsigned utf8_char_width(uint8_t c)
+static inline unsigned utf8_char_width(uint8_t c)
 {
 	size_t ret = 0;
 
@@ -45,7 +45,7 @@ static unsigned utf8_char_width(uint8_t c)
 	return ret;
 }
 
-static bool utf8_valid(const char *s)
+static inline bool utf8_valid(const char *s)
 {
 	const size_t len = strlen(s);
 
@@ -71,7 +71,7 @@ static bool utf8_valid(const char *s)
 	return true;
 }
 
-static uint32_t utf8_peek(const char *s)
+static inline uint32_t utf8_peek(const char *s)
 {
 	if (*s == 0)
 		return 0;
@@ -108,7 +108,7 @@ static uint32_t utf8_peek(const char *s)
 	return ret;
 }
 
-static const char *utf8_next(const char *s)
+static inline const char *utf8_next(const char *s)
 {
 	if (*s == 0)
 		return NULL;
@@ -168,31 +168,26 @@ typedef union RegexNode {
 } RegexNode;
 
 static bool is_match(RegexNode *node, const char *orig, const char *cur,
-		     const char **next)
+		const char **next)
 {
 	if (node == NULL) {
 		*next = cur;
 		return true;
 	} else {
-		if ((node->generic.match)(node, orig, cur, next)) {
-			return is_match(node->generic.next, orig, *next, next);
-		} else {
-			return false;
-		}
+		return ((node->generic.match)(node, orig, cur, next)) &&
+			is_match(node->generic.next, orig, *next, next);
 	}
 }
 
 static bool char_is_match(RegexNode *node, const char *orig, const char *cur,
 			  const char **next)
 {
-	const uint32_t c1 = node->chr.chr;
-
 	if (*cur == 0) {
 		return false;
 	}
 
 	*next = utf8_next(cur);
-	return c1 == utf8_peek(cur);
+	return node->chr.chr == utf8_peek(cur);
 }
 
 static bool start_is_match(RegexNode *node, const char *orig, const char *cur,
