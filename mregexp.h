@@ -49,6 +49,9 @@ typedef enum {
 	MREGEXP_UNCLOSED_SUBEXPRESSION,
 } MRegexpError;
 
+/* check if a given string is valid utf8 */
+bool mregexp_valid_utf8(const char *s);
+
 /* compile regular expression */
 MRegexp *mregexp_compile(const char *re);
 

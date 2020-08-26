@@ -45,6 +45,7 @@ static inline unsigned utf8_char_width(uint8_t c)
 	return ret;
 }
 
+// utf8 valid is extremly slow
 static inline bool utf8_valid(const char *s)
 {
 	const size_t len = strlen(s);
@@ -69,6 +70,11 @@ static inline bool utf8_valid(const char *s)
 	}
 
 	return true;
+}
+
+bool mregexp_check_utf8(const char *s)
+{
+	return utf8_valid(s);
 }
 
 static inline uint32_t utf8_peek(const char *s)
@@ -168,14 +174,14 @@ typedef union RegexNode {
 } RegexNode;
 
 static bool is_match(RegexNode *node, const char *orig, const char *cur,
-		const char **next)
+		     const char **next)
 {
 	if (node == NULL) {
 		*next = cur;
 		return true;
 	} else {
 		return ((node->generic.match)(node, orig, cur, next)) &&
-			is_match(node->generic.next, orig, *next, next);
+		       is_match(node->generic.next, orig, *next, next);
 	}
 }
 
@@ -288,7 +294,7 @@ struct {
 } CompileException;
 
 /* set global error value to the default value */
-static void clear_compile_exception(void)
+static inline void clear_compile_exception(void)
 {
 	CompileException.err = MREGEXP_OK;
 	CompileException.s = NULL;
@@ -865,10 +871,12 @@ bool mregexp_match(MRegexp *re, const char *s, MRegexpMatch *m)
 	m->match_begin = __SIZE_MAX__;
 	m->match_end = __SIZE_MAX__;
 
+	/*
 	if (!utf8_valid(s)) {
 		CompileException.err = MREGEXP_INVALID_UTF8;
 		return false;
 	}
+	*/
 
 	for (const char *tmp_s = s; *tmp_s; tmp_s = utf8_next(tmp_s)) {
 		const char *next = NULL;
@@ -905,7 +913,8 @@ MRegexpMatch *mregexp_all_matches(MRegexp *re, const char *s, size_t *sz)
 			size_t end = tmp.match_end;
 			s = s + end;
 
-			matches = realloc(matches, (++(*sz)) * sizeof(MRegexpMatch));
+			matches = realloc(matches,
+					  (++(*sz)) * sizeof(MRegexpMatch));
 
 			if (matches == NULL)
 				return NULL;
@@ -922,4 +931,3 @@ MRegexpMatch *mregexp_all_matches(MRegexp *re, const char *s, size_t *sz)
 
 	return matches;
 }
-

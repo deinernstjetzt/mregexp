@@ -253,13 +253,6 @@ START_TEST(invalid_utf8)
 
 	ck_assert_ptr_eq(mregexp_compile(s1), NULL);
 	ck_assert_int_eq(mregexp_error(), MREGEXP_INVALID_UTF8);
-
-	MRegexp *re = mregexp_compile("asdf"); // valid regular expression
-	MRegexpMatch m;
-	ck_assert(!mregexp_match(re, s1, &m));
-	ck_assert_int_eq(mregexp_error(), MREGEXP_INVALID_UTF8);
-
-	mregexp_free(re);
 }
 END_TEST
 
@@ -268,7 +261,8 @@ START_TEST(match_all)
 	MRegexp *re = mregexp_compile("ab");
 	size_t matches_len = 0;
 
-	MRegexpMatch *matches = mregexp_all_matches(re, "ab,ab,ab", &matches_len);
+	MRegexpMatch *matches =
+		mregexp_all_matches(re, "ab,ab,ab", &matches_len);
 
 	ck_assert_uint_eq(matches_len, 3);
 	ck_assert_ptr_ne(matches, NULL);
