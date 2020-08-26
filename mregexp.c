@@ -687,13 +687,13 @@ static RegexNode *compile_next_cap(const char *re, const char **leftover,
 	cur->generic.prev = NULL;
 	cur->generic.match = cap_is_match;
 
-	const char *end = find_closing_par(re) - 1;
+	const char *end = find_closing_par(re);
 
 	if (end == NULL)
 		throw_compile_exception(MREGEXP_UNCLOSED_SUBEXPRESSION, re);
 
-	*leftover = end + 1;
-	return compile(re, end, cur + 1);
+	*leftover = end;
+	return compile(re, end - 1, cur + 1);
 }
 
 /* compile next node. returns address of next available node.
