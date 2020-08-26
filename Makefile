@@ -1,5 +1,5 @@
 CC=cc
-CC_FLAGS=-std=c18 -Wall -Wpedantic -g
+CC_FLAGS=-std=c99 -Wall -Wpedantic -g
 
 mregexp.o: mregexp.c
 	$(CC) $(CC_FLAGS) -c -o $@ $^

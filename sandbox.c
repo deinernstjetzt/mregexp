@@ -14,7 +14,7 @@ char *readline(const char *prompt)
 			ret[retsz - 1] = 0;
 			break;
 		}
-		ret = realloc(ret, (++retsz));
+		ret = (char *) realloc(ret, (++retsz));
 	} while (fread(ret + retsz - 1, 1, 1, stdin));
 
 	return ret;
