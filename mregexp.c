@@ -238,7 +238,7 @@ static bool class_is_match(RegexNode *node, const char *orig, const char *cur,
 
 	if (cls->negate)
 		found = !found;
-	
+
 	return found;
 }
 
@@ -268,7 +268,7 @@ static size_t calc_compiled_escaped_len(const char *s, const char **leftover)
 {
 	if (*s == 0)
 		throw_compile_exception(MREGEXP_UNEXPECTED_EOL, s);
-	
+
 	const uint32_t chr = utf8_peek(s);
 	*leftover = utf8_next(s);
 
@@ -290,10 +290,47 @@ static size_t calc_compiled_escaped_len(const char *s, const char **leftover)
 
 	case 'W':
 		return 5;
-	
+
 	default:
 		return 1;
 	}
+}
+
+static const size_t calc_compiled_class_len(const char *s,
+					    const char **leftover)
+{
+	if (*s == '^')
+		s++;
+	
+	size_t ret = 1;
+
+	while (*s && *s != ']') {
+		uint32_t chr = utf8_peek(s);
+		s = utf8_next(s);
+		if (chr == '\\') {
+			s = utf8_next(s);
+		}
+
+		if (*s == '-' && s[1] != ']') {
+			s++;
+			chr = utf8_peek(s);
+			s = utf8_next(s);
+
+			if (chr == '\\')
+				s = utf8_next(s);
+		}
+
+		ret++;
+	}
+
+	if (*s == ']') {
+		s++;
+		*leftover = s;
+	} else {
+		throw_compile_exception(MREGEXP_INVALID_COMPLEX_CLASS, s);
+	}
+
+	return ret;
 }
 
 /* get required amount of memory in amount of nodes
@@ -322,6 +359,10 @@ static const size_t calc_compiled_len(const char *s)
 
 		case '\\':
 			ret = calc_compiled_escaped_len(s, &s);
+			break;
+
+		case '[':
+			ret = calc_compiled_class_len(s, &s);
 			break;
 
 		default:
@@ -419,11 +460,10 @@ static void parse_complex_quant(const char *re, const char **leftover,
 /* append character class to linked list of nodes with
  * ranges given as optional arguments. Returns pointer
  * to next */
-static RegexNode *append_class(RegexNode *cur, bool negate,
-	size_t n, ...)
+static RegexNode *append_class(RegexNode *cur, bool negate, size_t n, ...)
 {
 	cur->cls.negate = negate;
-	cur->cls.ranges = (RangeNode *) (n ? cur + 1 : NULL);
+	cur->cls.ranges = (RangeNode *)(n ? cur + 1 : NULL);
 	cur->generic.match = class_is_match;
 	cur->generic.next = NULL;
 	cur->generic.prev = NULL;
@@ -457,11 +497,11 @@ static RegexNode *append_class(RegexNode *cur, bool negate,
 
 /** compile escaped characters. return pointer to the next free node. */
 static RegexNode *compile_next_escaped(const char *re, const char **leftover,
-	RegexNode *cur)
+				       RegexNode *cur)
 {
 	if (*re == 0)
 		throw_compile_exception(MREGEXP_UNEXPECTED_EOL, re);
-	
+
 	const uint32_t chr = utf8_peek(re);
 	*leftover = utf8_next(re);
 	RegexNode *ret = cur + 1;
@@ -483,21 +523,25 @@ static RegexNode *compile_next_escaped(const char *re, const char **leftover,
 		break;
 
 	case 's':
-		ret = append_class(cur, false, 4, ' ', ' ', '\t', '\t', '\r', '\r', '\n', '\n');
+		ret = append_class(cur, false, 4, ' ', ' ', '\t', '\t', '\r',
+				   '\r', '\n', '\n');
 		break;
-	
+
 	case 'S':
-		ret = append_class(cur, true, 4, ' ', ' ', '\t', '\t', '\r', '\r', '\n', '\n');
+		ret = append_class(cur, true, 4, ' ', ' ', '\t', '\t', '\r',
+				   '\r', '\n', '\n');
 		break;
 
 	case 'w':
-		ret = append_class(cur, false, 4, 'a', 'z', 'A', 'Z', '0', '9', '_', '_');
+		ret = append_class(cur, false, 4, 'a', 'z', 'A', 'Z', '0', '9',
+				   '_', '_');
 		break;
 
 	case 'W':
-		ret = append_class(cur, true, 4, 'a', 'z', 'A', 'Z', '0', '9', '_', '_');
+		ret = append_class(cur, true, 4, 'a', 'z', 'A', 'Z', '0', '9',
+				   '_', '_');
 		break;
-	
+
 	case 'd':
 		ret = append_class(cur, false, 1, '0', '9');
 		break;
@@ -505,7 +549,7 @@ static RegexNode *compile_next_escaped(const char *re, const char **leftover,
 	case 'D':
 		ret = append_class(cur, true, 1, '0', '9');
 		break;
-	
+
 	default:
 		cur->chr.chr = chr;
 		cur->generic.match = char_is_match;
@@ -513,6 +557,78 @@ static RegexNode *compile_next_escaped(const char *re, const char **leftover,
 	}
 
 	return ret;
+}
+
+static RegexNode *compile_next_complex_class(const char *re,
+	const char **leftover, RegexNode *cur)
+{
+	cur->generic.match = class_is_match;
+	cur->generic.next = NULL;
+	cur->generic.prev = NULL;
+	
+	if (*re == '^') {
+		re++;
+		cur->cls.negate = true;
+	} else {
+		cur->cls.negate = false;
+	}
+
+	cur->cls.ranges = NULL;
+
+	cur = cur + 1;
+	RegexNode *prev = NULL;
+
+	while (*re && *re != ']') {
+		uint32_t first = 0, last = 0;
+
+		first = utf8_peek(re);
+		re = utf8_next(re);
+		if (first == '\\') {
+			if (*re == 0)
+				throw_compile_exception(MREGEXP_INVALID_COMPLEX_CLASS, re);
+			
+			first = utf8_peek(re);
+			re = utf8_next(re);
+		}
+
+		if (*re == '-' && re[1] != ']' && re[1]) {
+			re++;
+			last = utf8_peek(re);
+			re = utf8_next(re);
+
+			if (last == '\\') {
+				if (*re == 0)
+					throw_compile_exception(MREGEXP_INVALID_COMPLEX_CLASS, re);
+				
+				last = utf8_peek(re);
+				re = utf8_next(re);
+			}
+		} else {
+			last = first;
+		}
+
+		cur->range.first = first;
+		cur->range.last = last;
+		cur->generic.prev = prev;
+		cur->generic.next = NULL;
+
+		if (prev == NULL) {
+			(cur - 1)->cls.ranges = (RangeNode *) cur;
+		} else {
+			prev->generic.next = cur;
+		}
+
+		prev = cur;
+		cur++;
+	}
+
+	if (*re == ']') {
+		*leftover = re + 1;
+		return cur;
+	} else {
+		throw_compile_exception(MREGEXP_INVALID_COMPLEX_CLASS, re);
+		return NULL; // Unreachable
+	}
 }
 
 /* compile next node. returns address of next available node.
@@ -557,6 +673,10 @@ static RegexNode *compile_next(const char *re, const char **leftover,
 		re = leftover;
 		break;
 	}
+
+	case '[':
+		next = compile_next_complex_class(re, &re, cur);
+		break;
 
 	case '\\':
 		next = compile_next_escaped(re, &re, cur);

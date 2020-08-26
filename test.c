@@ -151,21 +151,61 @@ START_TEST(compile_match_class_simple)
 	MRegexp *re1 = mregexp_compile("\\s");
 	ck_assert_int_eq(mregexp_error(), MREGEXP_OK);
 	ck_assert_ptr_ne(re1, NULL);
-	MRegexp *re2 = mregexp_compile("\\W");
+	MRegexp *re2 = mregexp_compile("\\w");
 	ck_assert_int_eq(mregexp_error(), MREGEXP_OK);
 	ck_assert_ptr_ne(re2, NULL);
-	MRegexp *re3 = mregexp_compile("\\d");
+	MRegexp *re3 = mregexp_compile("\\D");
 	ck_assert_int_eq(mregexp_error(), MREGEXP_OK);
 	ck_assert_ptr_ne(re3, NULL);
 
 	MRegexpMatch m;
 	ck_assert(mregexp_match(re1, " ", &m));
-	ck_assert(mregexp_match(re2, " ", &m));
-	ck_assert(mregexp_match(re3, "1", &m));
+	ck_assert(mregexp_match(re1, "\r", &m));
+	ck_assert(mregexp_match(re1, "\n", &m));
+
+	ck_assert(mregexp_match(re2, "a", &m));
+	ck_assert(mregexp_match(re2, "0", &m));
+	ck_assert(mregexp_match(re2, "_", &m));
+	
+	ck_assert(mregexp_match(re3, "k", &m));
+	ck_assert(!mregexp_match(re3, "0", &m));
 
 	mregexp_free(re1);
 	mregexp_free(re2);
 	mregexp_free(re3);
+}
+END_TEST
+
+START_TEST(compile_match_class_complex_0)
+{
+	MRegexp *re = mregexp_compile("[asdf]");
+	ck_assert_int_eq(mregexp_error(), MREGEXP_OK);
+	ck_assert_ptr_ne(re, NULL);
+
+	MRegexpMatch m;
+	ck_assert(mregexp_match(re, "a", &m));
+	ck_assert(mregexp_match(re, "s", &m));
+	ck_assert(mregexp_match(re, "d", &m));
+	ck_assert(mregexp_match(re, "f", &m));
+
+	mregexp_free(re);
+}
+END_TEST
+
+START_TEST(compile_match_class_complex_1)
+{
+	MRegexp *re = mregexp_compile("[a-zä0-9öA-Z]");
+	ck_assert_int_eq(mregexp_error(), MREGEXP_OK);
+	ck_assert_ptr_ne(re, NULL);
+
+	MRegexpMatch m;
+	ck_assert(mregexp_match(re, "a", &m));
+	ck_assert(mregexp_match(re, "5", &m));
+	ck_assert(mregexp_match(re, "A", &m));
+	ck_assert(mregexp_match(re, "ä", &m));
+	ck_assert(mregexp_match(re, "ö", &m));
+
+	mregexp_free(re);
 }
 END_TEST
 
@@ -222,6 +262,8 @@ Suite *mregexp_test_suite(void)
 	tcase_add_test(tcase, compile_match_complex_quants);
 	tcase_add_test(tcase, compile_match_escaped_chars);
 	tcase_add_test(tcase, compile_match_class_simple);
+	tcase_add_test(tcase, compile_match_class_complex_0);
+	tcase_add_test(tcase, compile_match_class_complex_1);
 
 	suite_add_tcase(ret, tcase);
 	return ret;

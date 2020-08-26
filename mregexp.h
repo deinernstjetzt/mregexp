@@ -23,6 +23,7 @@ typedef enum {
 	MREGEXP_EARLY_QUANTIFIER,
 	MREGEXP_INVALID_COMPLEX_QUANT,
 	MREGEXP_UNEXPECTED_EOL,
+	MREGEXP_INVALID_COMPLEX_CLASS,
 } MRegexpError;
 
 /* compile regular expression */
