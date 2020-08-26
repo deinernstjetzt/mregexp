@@ -9,6 +9,10 @@ test: test.c mregexp.o
 	./test
 	rm -f test
 
+sandbox: sandbox.c mregexp.o
+	$(CC) $(CC_FLAGS) -o $@ $^
+
 clean:
 	rm -f test
 	rm -f mregexp.o
+	rm -f sandbox
