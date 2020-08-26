@@ -263,6 +263,25 @@ START_TEST(invalid_utf8)
 }
 END_TEST
 
+START_TEST(match_all)
+{
+	MRegexp *re = mregexp_compile("ab");
+	size_t matches_len = 0;
+
+	MRegexpMatch *matches = mregexp_all_matches(re, "ab,ab,ab", &matches_len);
+
+	ck_assert_uint_eq(matches_len, 3);
+	ck_assert_ptr_ne(matches, NULL);
+
+	ck_assert_uint_eq(matches[0].match_begin, 0);
+	ck_assert_uint_eq(matches[1].match_begin, 3);
+	ck_assert_uint_eq(matches[2].match_begin, 6);
+
+	free(matches);
+	mregexp_free(re);
+}
+END_TEST
+
 Suite *mregexp_test_suite(void)
 {
 	Suite *ret = suite_create("mregexp");
@@ -280,6 +299,7 @@ Suite *mregexp_test_suite(void)
 	tcase_add_test(tcase, compile_match_class_complex_0);
 	tcase_add_test(tcase, compile_match_class_complex_1);
 	tcase_add_test(tcase, compile_match_cap);
+	tcase_add_test(tcase, match_all);
 
 	suite_add_tcase(ret, tcase);
 	return ret;

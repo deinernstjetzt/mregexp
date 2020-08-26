@@ -896,3 +896,35 @@ void mregexp_free(MRegexp *re)
 	free(re->nodes);
 	free(re);
 }
+
+MRegexpMatch *mregexp_all_matches(MRegexp *re, const char *s, size_t *sz)
+{
+	MRegexpMatch *matches = NULL;
+	size_t offset = 0;
+	*sz = 0;
+
+	const char *end = s + strlen(s);
+	while (s < end) {
+		MRegexpMatch tmp;
+		if (mregexp_match(re, s, &tmp)) {
+			size_t end = tmp.match_end;
+			s = s + end;
+
+			matches = realloc(matches, (++(*sz)) * sizeof(MRegexpMatch));
+
+			if (matches == NULL)
+				return NULL;
+
+			tmp.match_begin += offset;
+			tmp.match_end += offset;
+
+			offset += end;
+			matches[(*sz) - 1] = tmp;
+		} else {
+			break;
+		}
+	}
+
+	return matches;
+}
+

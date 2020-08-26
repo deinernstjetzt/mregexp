@@ -55,8 +55,12 @@ MRegexp *mregexp_compile(const char *re);
 /* get error type if a function failed */
 MRegexpError mregexp_error(void);
 
-/* find a pattern in a string */
+/* find the first matching substring in s */
 bool mregexp_match(MRegexp *re, const char *s, MRegexpMatch *m);
+
+/* get all non-overlapping matches in string s. returns NULL
+ * if no matches are found. returned value must be freed */
+MRegexpMatch *mregexp_all_matches(MRegexp *re, const char *s, size_t *sz);
 
 /* free regular expression */
 void mregexp_free(MRegexp *re);
