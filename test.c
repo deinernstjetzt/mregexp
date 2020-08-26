@@ -166,7 +166,7 @@ START_TEST(compile_match_class_simple)
 	ck_assert(mregexp_match(re2, "a", &m));
 	ck_assert(mregexp_match(re2, "0", &m));
 	ck_assert(mregexp_match(re2, "_", &m));
-	
+
 	ck_assert(mregexp_match(re3, "k", &m));
 	ck_assert(!mregexp_match(re3, "0", &m));
 
@@ -204,6 +204,21 @@ START_TEST(compile_match_class_complex_1)
 	ck_assert(mregexp_match(re, "A", &m));
 	ck_assert(mregexp_match(re, "ä", &m));
 	ck_assert(mregexp_match(re, "ö", &m));
+
+	mregexp_free(re);
+}
+END_TEST
+
+START_TEST(compile_match_cap)
+{
+	MRegexp *re = mregexp_compile("(abc)d");
+	ck_assert_int_eq(mregexp_error(), MREGEXP_OK);
+	ck_assert_ptr_ne(re, NULL);
+
+	MRegexpMatch m;
+	ck_assert(mregexp_match(re, "abcd", &m));
+	ck_assert(mregexp_match(re, "llljabcdkk", &m));
+	ck_assert(!mregexp_match(re, "abc", &m));
 
 	mregexp_free(re);
 }
@@ -264,6 +279,7 @@ Suite *mregexp_test_suite(void)
 	tcase_add_test(tcase, compile_match_class_simple);
 	tcase_add_test(tcase, compile_match_class_complex_0);
 	tcase_add_test(tcase, compile_match_class_complex_1);
+	tcase_add_test(tcase, compile_match_cap);
 
 	suite_add_tcase(ret, tcase);
 	return ret;

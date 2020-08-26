@@ -130,12 +130,19 @@ typedef struct {
 	bool negate;
 } ClassNode;
 
+typedef struct {
+	GenericNode generic;
+	union RegexNode *subexp;
+	MRegexpMatch cap;
+} CapNode;
+
 typedef union RegexNode {
 	GenericNode generic;
 	CharNode chr;
 	QuantNode quant;
 	ClassNode cls;
 	RangeNode range;
+	CapNode cap;
 } RegexNode;
 
 static bool is_match(RegexNode *node, const char *orig, const char *cur,
@@ -242,6 +249,20 @@ static bool class_is_match(RegexNode *node, const char *orig, const char *cur,
 	return found;
 }
 
+static bool cap_is_match(RegexNode *node, const char *orig, const char *cur,
+			 const char **next)
+{
+	CapNode *cap = (CapNode *)node;
+
+	if (is_match(cap->subexp, orig, cur, next)) {
+		cap->cap.match_begin = cur - orig;
+		cap->cap.match_end = (*next) - orig;
+		return true;
+	}
+
+	return false;
+}
+
 /* Global error value with callback address */
 struct {
 	MRegexpError err;
@@ -301,7 +322,7 @@ static const size_t calc_compiled_class_len(const char *s,
 {
 	if (*s == '^')
 		s++;
-	
+
 	size_t ret = 1;
 
 	while (*s && *s != ']') {
@@ -560,12 +581,13 @@ static RegexNode *compile_next_escaped(const char *re, const char **leftover,
 }
 
 static RegexNode *compile_next_complex_class(const char *re,
-	const char **leftover, RegexNode *cur)
+					     const char **leftover,
+					     RegexNode *cur)
 {
 	cur->generic.match = class_is_match;
 	cur->generic.next = NULL;
 	cur->generic.prev = NULL;
-	
+
 	if (*re == '^') {
 		re++;
 		cur->cls.negate = true;
@@ -585,8 +607,9 @@ static RegexNode *compile_next_complex_class(const char *re,
 		re = utf8_next(re);
 		if (first == '\\') {
 			if (*re == 0)
-				throw_compile_exception(MREGEXP_INVALID_COMPLEX_CLASS, re);
-			
+				throw_compile_exception(
+					MREGEXP_INVALID_COMPLEX_CLASS, re);
+
 			first = utf8_peek(re);
 			re = utf8_next(re);
 		}
@@ -598,8 +621,10 @@ static RegexNode *compile_next_complex_class(const char *re,
 
 			if (last == '\\') {
 				if (*re == 0)
-					throw_compile_exception(MREGEXP_INVALID_COMPLEX_CLASS, re);
-				
+					throw_compile_exception(
+						MREGEXP_INVALID_COMPLEX_CLASS,
+						re);
+
 				last = utf8_peek(re);
 				re = utf8_next(re);
 			}
@@ -613,7 +638,7 @@ static RegexNode *compile_next_complex_class(const char *re,
 		cur->generic.next = NULL;
 
 		if (prev == NULL) {
-			(cur - 1)->cls.ranges = (RangeNode *) cur;
+			(cur - 1)->cls.ranges = (RangeNode *)cur;
 		} else {
 			prev->generic.next = cur;
 		}
@@ -629,6 +654,46 @@ static RegexNode *compile_next_complex_class(const char *re,
 		throw_compile_exception(MREGEXP_INVALID_COMPLEX_CLASS, re);
 		return NULL; // Unreachable
 	}
+}
+
+static const char *find_closing_par(const char *s)
+{
+	size_t level = 1;
+
+	for (; *s && level != 0; ++s) {
+		if (*s == '\\')
+			s++;
+		else if (*s == '(')
+			level++;
+		else if (*s == ')')
+			level--;
+	}
+
+	if (level == 0)
+		return s;
+	else
+		return NULL;
+}
+
+static RegexNode *compile(const char *re, const char *end, RegexNode *nodes);
+
+static RegexNode *compile_next_cap(const char *re, const char **leftover,
+				   RegexNode *cur)
+{
+	cur->cap.cap.match_begin = 0;
+	cur->cap.cap.match_end = 0;
+	cur->cap.subexp = cur + 1;
+	cur->generic.next = NULL;
+	cur->generic.prev = NULL;
+	cur->generic.match = cap_is_match;
+
+	const char *end = find_closing_par(re) - 1;
+
+	if (end == NULL)
+		throw_compile_exception(MREGEXP_UNCLOSED_SUBEXPRESSION, re);
+
+	*leftover = end + 1;
+	return compile(re, end, cur + 1);
 }
 
 /* compile next node. returns address of next available node.
@@ -678,6 +743,10 @@ static RegexNode *compile_next(const char *re, const char **leftover,
 		next = compile_next_complex_class(re, &re, cur);
 		break;
 
+	case '(':
+		next = compile_next_cap(re, &re, cur);
+		break;
+
 	case '\\':
 		next = compile_next_escaped(re, &re, cur);
 		break;
@@ -696,8 +765,8 @@ static RegexNode *compile_next(const char *re, const char **leftover,
 	return next;
 }
 
-/* compile raw regular expression into a linked list of nodes */
-static RegexNode *compile(const char *re, RegexNode *nodes)
+/* compile raw regular expression into a linked list of nodes. return leftover nodes */
+static RegexNode *compile(const char *re, const char *end, RegexNode *nodes)
 {
 	RegexNode *prev = nodes;
 	RegexNode *cur = nodes + 1;
@@ -706,7 +775,6 @@ static RegexNode *compile(const char *re, RegexNode *nodes)
 	prev->generic.prev = NULL;
 	prev->generic.match = start_is_match;
 
-	const char *end = re + strlen(re);
 	while (cur != NULL && re != NULL && re < end) {
 		const char *next = NULL;
 		RegexNode *next_node = compile_next(re, &next, prev, cur);
@@ -716,7 +784,7 @@ static RegexNode *compile(const char *re, RegexNode *nodes)
 		re = next;
 	}
 
-	return nodes;
+	return cur;
 }
 
 struct MRegexp {
@@ -757,7 +825,8 @@ MRegexp *mregexp_compile(const char *re)
 
 	const size_t compile_len = calc_compiled_len(re);
 	nodes = (RegexNode *)calloc(compile_len, sizeof(RegexNode));
-	ret->nodes = compile(re, nodes);
+	compile(re, re + strlen(re), nodes);
+	ret->nodes = nodes;
 
 	return ret;
 }
