@@ -913,8 +913,8 @@ MRegexpMatch *mregexp_all_matches(MRegexp *re, const char *s, size_t *sz)
 			size_t end = tmp.match_end;
 			s = s + end;
 
-			matches = realloc(matches,
-					  (++(*sz)) * sizeof(MRegexpMatch));
+			matches = (MRegexpMatch *)realloc(
+				matches, (++(*sz)) * sizeof(MRegexpMatch));
 
 			if (matches == NULL)
 				return NULL;
