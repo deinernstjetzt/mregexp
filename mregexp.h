@@ -65,6 +65,13 @@ bool mregexp_match(MRegexp *re, const char *s, MRegexpMatch *m);
  * if no matches are found. returned value must be freed */
 MRegexpMatch *mregexp_all_matches(MRegexp *re, const char *s, size_t *sz);
 
+/* get amount of capture groups inside of
+ * a regular expression */
+size_t mregexp_captures_len(MRegexp *re);
+
+/* get captured slice from capture group number index */
+const MRegexpMatch *mregexp_capture(MRegexp *re, size_t index);
+
 /* free regular expression */
 void mregexp_free(MRegexp *re);
 

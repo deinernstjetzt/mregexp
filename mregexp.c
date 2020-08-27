@@ -752,6 +752,10 @@ static RegexNode *compile_next(const char *re, const char **leftover,
 		append_quant(&prev, cur, 1, __SIZE_MAX__, re);
 		break;
 
+	case '?':
+		append_quant(&prev, cur, 0, 1, re);
+		break;
+
 	case '{': {
 		size_t min = 0, max = __SIZE_MAX__;
 		const char *leftover = NULL;
@@ -930,4 +934,68 @@ MRegexpMatch *mregexp_all_matches(MRegexp *re, const char *s, size_t *sz)
 	}
 
 	return matches;
+}
+
+/* calculate amount of capture groups
+ * inside a regular expression */
+static size_t cap_node_count(RegexNode *nodes)
+{
+	if (nodes == NULL) {
+		return 0;
+	} else if (nodes->generic.match == quant_is_match) {
+		return cap_node_count(nodes->quant.subexp) +
+		       cap_node_count(nodes->generic.next);
+	} else if (nodes->generic.match == cap_is_match) {
+		return cap_node_count(nodes->quant.subexp) +
+		       cap_node_count(nodes->generic.next) + 1;
+	} else {
+		return cap_node_count(nodes->generic.next);
+	}
+}
+
+size_t mregexp_captures_len(MRegexp *re)
+{
+	return cap_node_count(re->nodes);
+}
+
+static RegexNode *find_capture_node(RegexNode *node, size_t index)
+{
+	if (node == NULL) {
+		return NULL;
+	} else if (node->generic.match == cap_is_match) {
+		if (index == 0) {
+			return node;
+		} else {
+			const size_t subexp_len =
+				cap_node_count(node->cap.subexp);
+			if (index <= subexp_len) {
+				return find_capture_node(node->cap.subexp,
+							 index - subexp_len);
+			} else {
+				return find_capture_node(node->generic.next,
+							 index - 1 -
+								 subexp_len);
+			}
+		}
+	} else if (node->generic.match == quant_is_match) {
+		const size_t subexp_len = cap_node_count(node->quant.subexp);
+		if (index < subexp_len) {
+			return find_capture_node(node->quant.subexp, index);
+		} else {
+			return find_capture_node(node->generic.next, index);
+		}
+	} else {
+		return find_capture_node(node->generic.next, index);
+	}
+}
+
+const MRegexpMatch *mregexp_capture(MRegexp *re, size_t index)
+{
+	CapNode *cap = (CapNode *)find_capture_node(re->nodes, index);
+
+	if (cap == NULL) {
+		return NULL;
+	}
+
+	return &cap->cap;
 }
