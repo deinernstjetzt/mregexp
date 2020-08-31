@@ -29,20 +29,18 @@
 
 #include "mregexp.h"
 
+#ifndef __SIZE_MAX__
+#define __SIZE_MAX__ 4294967296
+#endif
+
 static inline unsigned utf8_char_width(uint8_t c)
 {
-	size_t ret = 0;
+	int a1 = !(128 & c) && 1;
+	int a2 = (128 & c) && (64 & c) && !(32 & c);
+	int a3 = (128 & c) && (64 & c) && (32 & c) && !(16 & c);
+	int a4 = (128 & c) && (64 & c) && (32 & c) && (16 & c) && !(8 & c);
 
-	if ((c & 128) == 0)
-		ret = 1;
-	else if ((c & (128 + 64 + 32)) == 128 + 64)
-		ret = 2;
-	else if ((c & (128 + 64 + 32 + 16)) == 128 + 64 + 32)
-		ret = 3;
-	else if ((c & (128 + 64 + 32 + 16 + 8)) == 128 + 64 + 32 + 16)
-		ret = 4;
-
-	return ret;
+	return a1 * 1 + a2 * 2 + a3 * 3 + a4 * 4;
 }
 
 // utf8 valid is extremly slow
@@ -77,6 +75,7 @@ bool mregexp_check_utf8(const char *s)
 	return utf8_valid(s);
 }
 
+static const int utf8_peek_mods[] = {0, 127, 31, 15, 7};
 static inline uint32_t utf8_peek(const char *s)
 {
 	if (*s == 0)
@@ -85,26 +84,7 @@ static inline uint32_t utf8_peek(const char *s)
 	const unsigned width = utf8_char_width(s[0]);
 	size_t ret = 0;
 
-	switch (width) {
-	case 1:
-		ret = s[0] & 127;
-		break;
-
-	case 2:
-		ret = s[0] & 31;
-		break;
-
-	case 3:
-		ret = s[0] & 15;
-		break;
-
-	case 4:
-		ret = s[0] & 7;
-		break;
-
-	default:
-		return 0;
-	}
+	ret = s[0] & utf8_peek_mods[width];
 
 	for (unsigned i = 1; i < width; ++i) {
 		ret <<= 6;
@@ -874,13 +854,6 @@ bool mregexp_match(MRegexp *re, const char *s, MRegexpMatch *m)
 
 	m->match_begin = __SIZE_MAX__;
 	m->match_end = __SIZE_MAX__;
-
-	/*
-	if (!utf8_valid(s)) {
-		CompileException.err = MREGEXP_INVALID_UTF8;
-		return false;
-	}
-	*/
 
 	for (const char *tmp_s = s; *tmp_s; tmp_s = utf8_next(tmp_s)) {
 		const char *next = NULL;
