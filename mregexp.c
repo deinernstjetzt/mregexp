@@ -284,11 +284,11 @@ static bool or_is_match(RegexNode *node, const char *orig, const char *cur,
 		or->generic.next = NULL;
 	}
 
-	if (is_match(or->left, orig, cur, next)) {
+	if (is_match(or->left, orig, cur, next) && or->left != NULL) {
 		return true;
 	}
 
-	return is_match(or->right, orig, cur, next);
+	return is_match(or->right, orig, cur, next) && or->right != NULL;
 }
 
 /* Global error value with callback address */
