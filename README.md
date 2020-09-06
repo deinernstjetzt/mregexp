@@ -56,3 +56,4 @@ make test
 | (c) | Matches the expression inside the parentheses. |
 | [c] | Matches all characters inside the brackets. Ranges like a-z may also be used |
 | [^c] | Does not match the characters inside the bracket. |
+| \| | Matches either the expression before the \| or the expression after it |

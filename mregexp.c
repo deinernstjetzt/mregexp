@@ -26,6 +26,7 @@
 #include <string.h>
 #include <setjmp.h>
 #include <stdarg.h>
+#include <stdio.h>
 
 #include "mregexp.h"
 
@@ -144,6 +145,12 @@ typedef struct {
 	MRegexpMatch cap;
 } CapNode;
 
+typedef struct {
+	GenericNode generic;
+	union RegexNode *left;
+	union RegexNode *right;
+} OrNode;
+
 typedef union RegexNode {
 	GenericNode generic;
 	CharNode chr;
@@ -151,6 +158,7 @@ typedef union RegexNode {
 	ClassNode cls;
 	RangeNode range;
 	CapNode cap;
+	OrNode or;
 } RegexNode;
 
 static bool is_match(RegexNode *node, const char *orig, const char *cur,
@@ -264,6 +272,23 @@ static bool cap_is_match(RegexNode *node, const char *orig, const char *cur,
 	}
 
 	return false;
+}
+
+static bool or_is_match(RegexNode *node, const char *orig, const char *cur,
+	const char **next)
+{
+	OrNode *or = (OrNode *)node;
+
+	if (or->generic.next != NULL) {
+		or->right = or->generic.next;
+		or->generic.next = NULL;
+	}
+
+	if (is_match(or->left, orig, cur, next)) {
+		return true;
+	}
+
+	return is_match(or->right, orig, cur, next);
 }
 
 /* Global error value with callback address */
@@ -699,6 +724,24 @@ static RegexNode *compile_next_cap(const char *re, const char **leftover,
 	return compile(re, end - 1, cur + 1);
 }
 
+static RegexNode *insert_or(RegexNode *cur, RegexNode **prev) {
+	cur->generic.match = or_is_match;
+	cur->generic.next = NULL;
+	cur->generic.prev = NULL;
+
+	// Find last start node
+	RegexNode *begin = *prev;
+
+	while (begin->generic.match != start_is_match) {
+		begin = begin->generic.prev;
+	}
+
+	cur->or.left = begin->generic.next;
+	*prev = begin;
+
+	return cur + 1;
+}
+
 /* compile next node. returns address of next available node.
  * returns NULL if re is empty */
 static RegexNode *compile_next(const char *re, const char **leftover,
@@ -756,6 +799,10 @@ static RegexNode *compile_next(const char *re, const char **leftover,
 
 	case '\\':
 		next = compile_next_escaped(re, &re, cur);
+		break;
+
+	case '|':
+		next = insert_or(cur, &prev);
 		break;
 
 	default:

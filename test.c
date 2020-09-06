@@ -176,6 +176,29 @@ START_TEST(compile_match_class_simple)
 }
 END_TEST
 
+START_TEST(compile_match_or)
+{
+	MRegexp *re = mregexp_compile("as|df");
+	ck_assert_int_eq(mregexp_error(), MREGEXP_OK);
+	ck_assert_ptr_ne(re, NULL);
+
+	MRegexpMatch m;
+	ck_assert(mregexp_match(re, "as", &m));
+	ck_assert(mregexp_match(re, "df", &m));
+
+	mregexp_free(re);
+
+	re = mregexp_compile("(as|df)");
+	ck_assert_int_eq(mregexp_error(), MREGEXP_OK);
+	ck_assert_ptr_ne(re, NULL);
+
+	ck_assert(mregexp_match(re, "as", &m));
+	ck_assert(mregexp_match(re, "df", &m));
+
+	mregexp_free(re);
+}
+END_TEST
+
 START_TEST(compile_match_class_complex_0)
 {
 	MRegexp *re = mregexp_compile("[asdf]");
@@ -327,6 +350,7 @@ Suite *mregexp_test_suite(void)
 	tcase_add_test(tcase, match_all);
 	tcase_add_test(tcase, captures_len);
 	tcase_add_test(tcase, captures_cap);
+	tcase_add_test(tcase, compile_match_or);
 
 	suite_add_tcase(ret, tcase);
 	return ret;
