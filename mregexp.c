@@ -34,11 +34,10 @@
 #define __SIZE_MAX__ 4294967296
 #endif
 
-// https://github.com/skeeto/pdjson/blob/master/pdjson.c
-// Condensed version of utf8_seq_length():
-
 static inline unsigned utf8_char_width(uint8_t u)
 {
+	// https://github.com/skeeto/pdjson/blob/master/pdjson.c
+	// Condensed version of utf8_seq_length():
 	if (u < 0x80)
 		return 1;
 	if (0xC2 <= u && u <= 0xDF)
@@ -84,12 +83,12 @@ static inline uint32_t utf8_decode(uint32_t *state, uint32_t *codep,
 	return *state;
 }
 
-bool utf8_count_codepoints(size_t *count, const uint8_t *s)
+static bool utf8_count_codepoints(size_t *count, const uint8_t *s)
 {
 	uint32_t state = UTF8_ACCEPT, codepoint;
 	for (*count = 0; *s; ++s)
 		*count += !utf8_decode(&state, &codepoint, *s);
-	return state == UTF8_ACCEPT; // NB! true for valid
+	return state == UTF8_ACCEPT; // NB! valid == true
 }
 
 // End - Copyright (c) 2008-2009 Bjoern Hoehrmann <bjoern@hoehrmann.de>
