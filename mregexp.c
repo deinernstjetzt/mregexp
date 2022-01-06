@@ -34,19 +34,14 @@
 #define __SIZE_MAX__ 4294967296
 #endif
 
-static inline unsigned utf8_char_width(uint8_t u)
+static inline uint32_t utf8_char_width(uint8_t c)
 {
-	// https://github.com/skeeto/pdjson/blob/master/pdjson.c
-	// Condensed version of utf8_seq_length():
-	if (u < 0x80)
-		return 1;
-	if (0xC2 <= u && u <= 0xDF)
-		return 2;
-	if (0xE0 <= u && u <= 0xEF)
-		return 3;
-	if (0xF0 <= u && u <= 0xF4)
-		return 4;
-	return 0;
+	// "optimal" branchless implementation...
+	uint32_t ret = (c < 0x80);        // 1
+	ret |= ((c & 0xE0) == 0xC0) << 1; // 2
+	ret |= ((c & 0xF0) == 0xE0)*3;    // 3
+	ret |= ((c & 0xF8) == 0xF0) << 2; // 4
+	return ret;
 }
 
 // Copyright (c) 2008-2009 Bjoern Hoehrmann <bjoern@hoehrmann.de>
