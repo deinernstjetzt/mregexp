@@ -158,7 +158,7 @@ typedef union RegexNode {
 	ClassNode cls;
 	RangeNode range;
 	CapNode cap;
-	OrNode or;
+	OrNode orn;
 } RegexNode;
 
 static bool is_match(RegexNode *node, const char *orig, const char *cur,
@@ -277,18 +277,18 @@ static bool cap_is_match(RegexNode *node, const char *orig, const char *cur,
 static bool or_is_match(RegexNode *node, const char *orig, const char *cur,
 	const char **next)
 {
-	OrNode *or = (OrNode *)node;
+	OrNode *orn = (OrNode *)node;
 
-	if (or->generic.next != NULL) {
-		or->right = or->generic.next;
-		or->generic.next = NULL;
+	if (orn->generic.next != NULL) {
+		orn->right = orn->generic.next;
+		orn->generic.next = NULL;
 	}
 
-	if (is_match(or->left, orig, cur, next) && or->left != NULL) {
+	if (is_match(orn->left, orig, cur, next) && orn->left != NULL) {
 		return true;
 	}
 
-	return is_match(or->right, orig, cur, next) && or->right != NULL;
+	return is_match(orn->right, orig, cur, next) && orn->right != NULL;
 }
 
 /* Global error value with callback address */
@@ -736,7 +736,7 @@ static RegexNode *insert_or(RegexNode *cur, RegexNode **prev) {
 		begin = begin->generic.prev;
 	}
 
-	cur->or.left = begin->generic.next;
+	cur->orn.left = begin->generic.next;
 	*prev = begin;
 
 	return cur + 1;
