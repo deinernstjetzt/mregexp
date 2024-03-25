@@ -1,4 +1,4 @@
-/* 
+/*
  * Copyright (c) 2020 Fabian van Rissenbeck
 
 * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -34,65 +34,72 @@
 #define __SIZE_MAX__ 4294967296
 #endif
 
-static inline unsigned utf8_char_width(uint8_t c)
+static inline uint32_t utf8_char_width(uint8_t c)
 {
-	int a1 = !(128 & c) && 1;
-	int a2 = (128 & c) && (64 & c) && !(32 & c);
-	int a3 = (128 & c) && (64 & c) && (32 & c) && !(16 & c);
-	int a4 = (128 & c) && (64 & c) && (32 & c) && (16 & c) && !(8 & c);
-
-	return a1 * 1 + a2 * 2 + a3 * 3 + a4 * 4;
+	// "optimal" branchless implementation...
+	uint32_t ret = (c < 0x80);        // 1
+	ret |= ((c & 0xE0) == 0xC0) << 1; // 2
+	ret |= ((c & 0xF0) == 0xE0) * 3;  // 3
+	ret |= ((c & 0xF8) == 0xF0) << 2; // 4
+	return ret;
 }
 
-// utf8 valid is extremly slow
-static inline bool utf8_valid(const char *s)
+// Copyright (c) 2008-2009 Bjoern Hoehrmann <bjoern@hoehrmann.de>
+// See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
+
+#define UTF8_ACCEPT 0
+#define UTF8_REJECT 1
+
+static const uint8_t utf8d[] = {
+	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 00..1f
+	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 20..3f
+	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 40..5f
+	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 60..7f
+	1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9, // 80..9f
+	7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7, // a0..bf
+	8,8,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2, // c0..df
+	0xa,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x4,0x3,0x3, // e0..ef
+	0xb,0x6,0x6,0x6,0x5,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8, // f0..ff
+	0x0,0x1,0x2,0x3,0x5,0x8,0x7,0x1,0x1,0x1,0x4,0x6,0x1,0x1,0x1,0x1, // s0..s0
+	1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,0,1,0,1,1,1,1,1,1, // s1..s2
+	1,2,1,1,1,1,1,2,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1, // s3..s4
+	1,2,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,3,1,3,1,1,1,1,1,1, // s5..s6
+	1,3,1,1,1,1,1,3,1,3,1,1,1,1,1,1,1,3,1,1,1,1,1,1,1,1,1,1,1,1,1,1, // s7..s8
+};
+
+static inline uint32_t utf8_decode(uint32_t *state, uint32_t *codep,
+				   const uint32_t byte)
 {
-	const size_t len = strlen(s);
+	uint32_t type = utf8d[byte];
+	*codep = (*state != UTF8_ACCEPT) ? (byte & 0x3fu) | (*codep << 6)
+					 : (0xff >> type) & (byte);
 
-	for (size_t i = 0; i < len;) {
-		const unsigned width = utf8_char_width((uint8_t)s[i]);
-
-		if (width == 0) {
-			return false;
-		}
-
-		if (i + width > len) {
-			return false;
-		}
-
-		for (unsigned j = 1; j < width; ++j)
-			if ((s[i + j] & (128 + 64)) != 128) {
-				return false;
-			}
-
-		i += width;
-	}
-
-	return true;
+	*state = utf8d[256 + (*state << 4) + type];
+	return *state;
 }
 
-bool mregexp_check_utf8(const char *s)
+static bool utf8_count_codepoints(size_t *count, const uint8_t *s)
 {
-	return utf8_valid(s);
+	uint32_t state = UTF8_ACCEPT, codepoint;
+	for (*count = 0; *s; ++s)
+		*count += !utf8_decode(&state, &codepoint, *s);
+	return state == UTF8_ACCEPT; // NB! valid == true
 }
 
-static const int utf8_peek_mods[] = {0, 127, 31, 15, 7};
+// End - Copyright (c) 2008-2009 Bjoern Hoehrmann <bjoern@hoehrmann.de>
+
+bool mregexp_valid_utf8(const char *s)
+{
+	size_t count;
+	bool valid = utf8_count_codepoints(&count, (const uint8_t *)s);
+	return valid;
+}
+
 static inline uint32_t utf8_peek(const char *s)
 {
-	if (*s == 0)
-		return 0;
-
-	const unsigned width = utf8_char_width(s[0]);
-	size_t ret = 0;
-
-	ret = s[0] & utf8_peek_mods[width];
-
-	for (unsigned i = 1; i < width; ++i) {
-		ret <<= 6;
-		ret += s[i] & 63;
-	}
-
-	return ret;
+	uint32_t state = UTF8_ACCEPT, codepoint;
+	utf8_decode(&state, &codepoint, (uint8_t)s[0]);
+	return codepoint;
 }
 
 static inline const char *utf8_next(const char *s)
@@ -853,7 +860,7 @@ MRegexp *mregexp_compile(const char *re)
 		return NULL;
 	}
 
-	if (!utf8_valid(re)) {
+	if (!mregexp_valid_utf8(re)) {
 		CompileException.err = MREGEXP_INVALID_UTF8;
 		CompileException.s = NULL;
 		return NULL;
