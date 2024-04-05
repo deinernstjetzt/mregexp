@@ -15,5 +15,5 @@ if ("${BUILD_TESTING}" STREQUAL "ON")
         add_test(NAME ${name} COMMAND ${name})
     endfunction()
 
-    add_unit_test(dummy)
+    add_unit_test(basic_string_matching)
 endif()
