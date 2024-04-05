@@ -16,4 +16,5 @@ if ("${BUILD_TESTING}" STREQUAL "ON")
     endfunction()
 
     add_unit_test(basic_string_matching)
+    add_unit_test(parse_utf8)
 endif()
