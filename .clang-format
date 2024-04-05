@@ -1,0 +1,10 @@
+---
+BasedOnStyle: llvm
+IndentWidth: 2
+---
+Language: Cpp
+DerivePointerAlignment: false
+PointerAlignment: Left
+ColumnLimit: 100
+AlignAfterOpenBracket: Align
+AllowShortBlocksOnASingleLine: Always
